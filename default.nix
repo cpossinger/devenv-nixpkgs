@@ -1,45 +1,33 @@
-# Compatibility shim for non-flake usage:
-#   import nixpkgs { system = "x86_64-linux"; overlays = [...]; }
-#
-# Reads nixpkgs revision from flake.lock and applies patches.
-
-{
-  localSystem ? { system = args.system or builtins.currentSystem; },
-  system ? localSystem.system,
-  config ? { },
-  overlays ? [ ],
-  ...
-}@args:
 let
-  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
-  nixpkgs-src = builtins.fetchTree {
-    type = "github";
-    owner = "NixOS";
-    repo = "nixpkgs";
-    rev = lock.nodes.nixpkgs-src.locked.rev;
-    narHash = lock.nodes.nixpkgs-src.locked.narHash;
-  };
-
-  # Bootstrap pkgs for fetchpatch and applyPatches
-  bootstrapPkgs = import nixpkgs-src { inherit system; };
-
-  patchDefs = bootstrapPkgs.callPackage ./patches { };
-  allPatches = patchDefs.upstream ++ patchDefs.local;
-
-  patchedSrc =
-    if allPatches == [ ] then
-      nixpkgs-src
-    else
-      bootstrapPkgs.applyPatches {
-        name = "devenv-nixpkgs-patched";
-        src = nixpkgs-src;
-        patches = allPatches;
-      };
+  missingFeatures = map ({ description, ... }: description) (import ./lib/minfeatures.nix).missing;
 in
-import patchedSrc (
-  args
-  // {
-    inherit config;
-    overlays = (import ./overlays) ++ overlays;
-  }
-)
+
+if missingFeatures != [ ] then
+
+  abort ''
+
+    This version of Nixpkgs requires an implementation of Nix with the following features:
+    - ${builtins.concatStringsSep "\n- " missingFeatures}
+
+    You are evaluating with Nix ${builtins.nixVersion or "(too old to know)"}, please upgrade:
+
+    - If you are running NixOS, `nixos-rebuild' can be used to upgrade your system.
+
+    - Alternatively, with Nix > 2.0 `nix upgrade-nix' can be used to imperatively
+      upgrade Nix. You may use `nix-env --version' to check which version you have.
+
+    - If you installed Nix using the install script (https://nixos.org/nix/install),
+      it is safe to upgrade by running it again:
+
+          curl -L https://nixos.org/nix/install | sh
+
+    For more information, please see the NixOS release notes at
+    https://nixos.org/nixos/manual or locally at
+    ${toString ./nixos/doc/manual/release-notes}.
+
+    If you need further help, see https://nixos.org/nixos/support.html
+  ''
+
+else
+
+  import ./pkgs/top-level/impure.nix

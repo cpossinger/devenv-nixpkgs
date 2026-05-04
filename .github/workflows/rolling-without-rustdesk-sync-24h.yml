@@ -35,10 +35,24 @@ jobs:
 
           git fetch upstream rolling --quiet
 
+          # Capture pre-rebase SHA so we can reliably restore workflow files afterward
+          PRE_REBASE_SHA=$(git rev-parse HEAD)
+
           if ! git rebase --quiet -X theirs upstream/rolling; then
             echo "::error::Rebase failed -- resolve conflicts manually and re-run."
             git rebase --abort
             exit 1
+          fi
+
+          # Restore local workflow files to avoid push rejection:
+          # GITHUB_TOKEN lacks 'workflows' permission to update .github/workflows/**
+          if ! git checkout "$PRE_REBASE_SHA" -- .github/workflows; then
+            echo "::warning::Could not restore .github/workflows from pre-rebase commit; skipping."
+          fi
+
+          # If restoring workflows produced staged changes, commit them before pushing
+          if ! git diff --cached --quiet; then
+            git commit -m "Keep local GitHub Actions workflows during upstream sync"
           fi
 
           git push origin rolling-without-rustdesk --force-with-lease

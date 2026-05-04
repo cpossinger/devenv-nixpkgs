@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  workflows: write  # required to push commits that modify .github/workflows/**
 
 jobs:
   sync:
@@ -46,7 +45,7 @@ jobs:
           fi
 
           # Restore local workflow files to avoid push rejection:
-          # GITHUB_TOKEN lacks 'workflows' permission to update .github/workflows/**
+          # GITHUB_TOKEN cannot update .github/workflows/** via rebase; restore from pre-rebase commit
           if ! git checkout "$PRE_REBASE_SHA" -- .github/workflows; then
             echo "::warning::Could not restore .github/workflows from pre-rebase commit; skipping."
           fi

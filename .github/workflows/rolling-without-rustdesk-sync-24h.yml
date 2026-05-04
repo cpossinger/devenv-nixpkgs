@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  workflows: write
 
 jobs:
   sync:
@@ -18,18 +17,28 @@ jobs:
         with:
           ref: 'rolling-without-rustdesk'
           filter: blob:none
-          fetch-depth: 0 
+          fetch-depth: 0
           persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sync with Upstream
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git remote add upstream https://github.com/cachix/devenv-nixpkgs.git
-          
+
+          if git remote get-url upstream &>/dev/null; then
+            git remote set-url upstream https://github.com/cachix/devenv-nixpkgs.git
+          else
+            git remote add upstream https://github.com/cachix/devenv-nixpkgs.git
+          fi
+
           git fetch upstream rolling --quiet
 
-          git rebase --quiet -X theirs upstream/rolling
+          if ! git rebase --quiet -X theirs upstream/rolling; then
+            echo "::error::Rebase failed -- resolve conflicts manually and re-run."
+            git rebase --abort
+            exit 1
+          fi
 
           git push origin rolling-without-rustdesk --force-with-lease

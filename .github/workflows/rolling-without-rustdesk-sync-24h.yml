@@ -19,7 +19,7 @@ jobs:
           filter: blob:none
           fetch-depth: 0
           persist-credentials: true
-          token: ${{ secrets.EDIT_WORKFLOW_FILES }}
+          token: ${{ secrets.EDIT_WORKFLOW_FILES || github.token }}
 
       - name: Sync with Upstream
         shell: bash
